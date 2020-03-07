@@ -1,0 +1,159 @@
+#!/bin/sh
+
+POSIXLY_CORRECT=yes
+
+print_report_head(){
+    echo "Root dierctory: $1"
+    echo "Directories: $2"
+    echo "All files: $3"
+    echo "File size histogram:"
+}
+
+print_histogram_line(){
+    awk -v len="$1" -v prefix="$2" 'BEGIN {
+			printf("  %s: ", prefix);
+
+            for(i=0;i<len;i++)
+                printf("#");
+
+            printf("\n");
+            } '
+}
+
+$RET_NORM
+normalize(){
+
+    RET_NORM=$(awk -v len="$1" -v max="$2" -v min="$3" -v width="$4" 'BEGIN {
+            new_val = (len-min)/(max-min)*width
+
+            printf("%.0f", new_val);
+            } ')
+
+}
+
+NORM=false
+DIR=$(pwd)
+DIRS=0
+FFILES=0
+RE_IGNORE=""
+
+B100=0
+K1=0
+K10=0
+K100=0
+M1=0
+M10=0
+M100=0
+G1=0
+OTHER=0
+
+# zpracovani argumentu
+while [ "$#" != "0" ]; do
+    if [ "$1" = "-n" ]; then
+        NORM=true
+    elif [ -d "$1" ]; then
+        DIR=$1
+    elif [ "$1" = "-i" ]; then
+        RE_IGNORE=$2
+        shift
+    fi
+
+    if [ "$#" != "0" ]; then
+        shift
+    fi
+done
+
+DIRS=$(find "$DIR" -type d | wc -l)
+FFILES=$(find "$DIR" -type f | wc -l)
+
+B100=$(find "$DIR" -type f -size -100c | wc -l)
+K1=$(find "$DIR" -type f \( -size +100c -o -size 100c \) -a -size -1024c  | wc -l)
+K10=$(find "$DIR" -type f \( -size +1024c -o -size 1024c \) -a -size -10240c | wc -l)
+K100=$(find "$DIR" -type f \( -size +10240c -o -size 10240c \) -a -size -102400c | wc -l)
+M1=$(find "$DIR" -type f \( -size +102400c -o -size 102400c \) -a -size -1048576c | wc -l)
+M10=$(find "$DIR" -type f \( -size +1048576c -o -size 1048576c \) -a -size -10485760c | wc -l)
+M100=$(find "$DIR" -type f \( -size +10485760c -o -size 10485760c \) -a -size -104857600c | wc -l)
+G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c | wc -l)
+OTHER=$(find "$DIR" -type f -size +1073741824c | wc -l)
+
+if [ "$NORM" = "true" ]; then
+    if [ -t 1 ]; then
+        WINDOW_WIDTH=$(tput cols)
+        WINDOW_WIDTH=$(echo "$WINDOW_WIDTH-13" | bc)
+    else
+        WINDOW_WIDTH=67
+        echo "$WINDOW_WIDTH"
+    fi
+
+    MAX=0
+    MIN=0
+
+    for n in $(echo "$B100 $K1 $K10 $K100 $M1 $M10 $M100 $G1 $OTHER"); do
+        if [ "$n" -gt "$MAX" ]; then
+            MAX=$n
+        elif [ "$n" -lt "$MIN" ]; then
+            MIN=$n
+        fi
+    done
+
+
+    if [ "$MAX" -gt "$WINDOW_WIDTH" ]; then
+
+        normalize $B100 $MAX $MIN $WINDOW_WIDTH
+        B100=$RET_NORM
+        normalize $K1 $MAX $MIN $WINDOW_WIDTH
+        K1=$RET_NORM
+        normalize $K10 $MAX $MIN $WINDOW_WIDTH
+        K10=$RET_NORM
+        normalize $K100 $MAX $MIN $WINDOW_WIDTH
+        K100=$RET_NORM
+        normalize $M1 $MAX $MIN $WINDOW_WIDTH
+        M1=$RET_NORM
+        normalize $M10 $MAX $MIN $WINDOW_WIDTH
+        M10=$RET_NORM
+        normalize $M100 $MAX $MIN $WINDOW_WIDTH
+        M100=$RET_NORM
+        normalize $G1 $MAX $MIN $WINDOW_WIDTH
+        G1=$RET_NORM
+        normalize $OTHER $MAX $MIN $WINDOW_WIDTH
+        OTHER=$RET_NORM
+    fi
+
+fi
+
+print_report_head $DIR $DIRS $FFILES
+print_histogram_line $B100 "<100 B  "
+print_histogram_line $K1 "<1 KiB  "
+print_histogram_line $K10 "<10 KiB "
+print_histogram_line $K100 "<100 KiB"
+print_histogram_line $M1 "<1 MiB  "
+print_histogram_line $M10 "<10 MiB "
+print_histogram_line $M100 "<100 MiB"
+print_histogram_line $G1 "<1 GiB  "
+print_histogram_line $OTHER ">=1 GiB "
+
+exit 0
+
+
+#for f in $FFILES; do
+#    FFILES_SIZE=$(wc -c < "$f")
+#    if [ "$FFILES_SIZE" -lt 100 ]; then
+#        B100=$((B100+1))
+#    elif [ "$FFILES_SIZE" -gt 100 -o "$FFILES_SIZE" -eq 100 ] && [ "$FFILES_SIZE" -lt 1024 ]; then
+#        K1=$((K1+1))
+#    elif [ "$FFILES_SIZE" -gt 1024 -o "$FFILES_SIZE" -eq 1024 ] && [ "$FFILES_SIZE" -lt 10240 ]; then
+#        K10=$((K10+1))
+#    elif [ "$FFILES_SIZE" -gt 10240 -o "$FFILES_SIZE" -eq 10240 ] && [ "$FFILES_SIZE" -lt 102400 ]; then
+#        K100=$((K100+1))
+#    elif [ "$FFILES_SIZE" -gt 102400 -o "$FFILES_SIZE" -eq 102400 ] && [ "$FFILES_SIZE" -lt 1048576 ]; then
+#        M1=$((M1+1))
+#    elif [ "$FFILES_SIZE" -gt 1048576 -o "$FFILES_SIZE" -eq 1048576 ] && [ "$FFILES_SIZE" -lt 10485760 ]; then
+#        M10=$((M10+1))
+#    elif [ "$FFILES_SIZE" -gt 10485760 -o "$FFILES_SIZE" -eq 10485760 ] && [ "$FFILES_SIZE" -lt 104857600 ]; then
+#        M100=$((M100+1))
+#    elif [ "$FFILES_SIZE" -gt 104857600 -o "$FFILES_SIZE" -eq 104857600 ] && [ "$FFILES_SIZE" -lt 1073741824 ]; then
+#        G1=$((G1+1))
+#    else
+#        OTHER=$((OTHER+1))
+#    fi
+#done
