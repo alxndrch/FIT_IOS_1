@@ -2,6 +2,20 @@
 
 POSIXLY_CORRECT=yes
 
+#TODO:
+# co kdyz je zadano vice adresaru DIR
+# co kdyz zadana cesta k adresari neni platna? ma se ignorovat a pracovat s pwd?
+# co kdyz je ignore zadano vicekrat
+# co kdyz je v ignore chybi cesta
+# pocitat mezi Directories i zadany adresar
+# kdy nastava chyba
+# pokud nam nepretika text, nemusime normalizovat?
+# jak je to se skrytyma souborama = prefix .
+# bude regularni vyraz zadan v uvozovkach?
+# co když REGEX pokryva DIR adresar, je to chyba nebo se to vykona
+# jak se bude kontrolovat normalizace
+# jak je to s case-sensitive u nazvu souboru
+
 print_report_head(){
     echo "Root dierctory: $1"
     echo "Directories: $2"
@@ -56,6 +70,9 @@ while [ "$#" != "0" ]; do
     elif [ "$1" = "-i" ]; then
         RE_IGNORE=$2
         shift
+        if [ "$#" != "0" ]; then
+            shift
+        fi
     fi
 
     if [ "$#" != "0" ]; then
@@ -63,18 +80,26 @@ while [ "$#" != "0" ]; do
     fi
 done
 
-DIRS=$(find "$DIR" -type d | wc -l)
-FFILES=$(find "$DIR" -type f | wc -l)
+if [ ! -z "$RE_IGNORE" ]; then
+    if [ ! -z "$(echo "$DIR" | grep "$RE_IGNORE")" ]; then
+        exit 1
+    fi
+fi
 
-B100=$(find "$DIR" -type f -size -100c | wc -l)
-K1=$(find "$DIR" -type f \( -size +100c -o -size 100c \) -a -size -1024c  | wc -l)
-K10=$(find "$DIR" -type f \( -size +1024c -o -size 1024c \) -a -size -10240c | wc -l)
-K100=$(find "$DIR" -type f \( -size +10240c -o -size 10240c \) -a -size -102400c | wc -l)
-M1=$(find "$DIR" -type f \( -size +102400c -o -size 102400c \) -a -size -1048576c | wc -l)
-M10=$(find "$DIR" -type f \( -size +1048576c -o -size 1048576c \) -a -size -10485760c | wc -l)
-M100=$(find "$DIR" -type f \( -size +10485760c -o -size 10485760c \) -a -size -104857600c | wc -l)
-G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c | wc -l)
-OTHER=$(find "$DIR" -type f -size +1073741824c | wc -l)
+DIRS=$(find "$DIR" -type d ! \( -regextype egrep -regex "$RE_IGNORE" \) | wc -l)
+FFILES=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) | wc -l)
+
+B100=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a -size -100c | wc -l)
+K1=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +100c -o -size 100c \) -a -size -1024c  | wc -l)
+K10=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +1024c -o -size 1024c \) -a -size -10240c | wc -l)
+K100=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +10240c -o -size 10240c \) -a -size -102400c | wc -l)
+M1=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +102400c -o -size 102400c \) -a -size -1048576c | wc -l)
+M10=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c | wc -l)
+M100=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c | wc -l)
+G1=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c | wc -l)
+OTHER=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  -size +1073741824c | wc -l)
+
+
 
 if [ "$NORM" = "true" ]; then
     if [ -t 1 ]; then
