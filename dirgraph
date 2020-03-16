@@ -34,7 +34,7 @@ print_histogram_line(){
             } '
 }
 
-$RET_NORM
+RET_NORM=""
 normalize(){
 
     RET_NORM=$(awk -v len="$1" -v max="$2" -v min="$3" -v width="$4" 'BEGIN {
@@ -42,6 +42,15 @@ normalize(){
 
             printf("%.0f", new_val);
             } ')
+
+}
+
+EXIT_CODE=0
+exit_code_process(){
+    
+    if [ "$EXIT_CODE" -eq "0" ]; then
+        EXIT_CODE=$1
+    fi
 
 }
 
@@ -86,20 +95,23 @@ if [ ! -z "$RE_IGNORE" ]; then
     fi
 fi
 
-DIRS=$(find "$DIR" -type d ! \( -regextype egrep -regex "$RE_IGNORE" \) | wc -l)
-FFILES=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) | wc -l)
+DIRS=$(find "$DIR" -type d ! \( -regextype posix-extended -regex "$RE_IGNORE" \) 2>/dev/null)
+exit_code_process $?
+DIRS=$(echo "$DIRS" | wc -l)
 
-B100=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a -size -100c | wc -l)
-K1=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +100c -o -size 100c \) -a -size -1024c  | wc -l)
-K10=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +1024c -o -size 1024c \) -a -size -10240c | wc -l)
-K100=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +10240c -o -size 10240c \) -a -size -102400c | wc -l)
-M1=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +102400c -o -size 102400c \) -a -size -1048576c | wc -l)
-M10=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c | wc -l)
-M100=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c | wc -l)
-G1=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c | wc -l)
-OTHER=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a  -size +1073741824c | wc -l)
+FFILES=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) 2>/dev/null)
+exit_code_process $?
+[ -z "$FFILES" ] && FFILES=0 || FFILES=$(echo "$FFILES" | wc -l)
 
-
+B100=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a -size -100c 2>/dev/null | wc -l)
+K1=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null | wc -l)
+K10=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null | wc -l)
+K100=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null | wc -l)
+M1=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null | wc -l)
+M10=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null | wc -l)
+M100=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | wc -l)
+G1=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a  \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | wc -l)
+OTHER=$(find "$DIR" -type f ! \( -regextype posix-extended -regex "$RE_IGNORE" \) -a  -size +1073741824c 2>/dev/null | wc -l)
 
 if [ "$NORM" = "true" ]; then
     if [ -t 1 ]; then
@@ -123,7 +135,6 @@ if [ "$NORM" = "true" ]; then
 
 
     if [ "$MAX" -gt "$WINDOW_WIDTH" ]; then
-
         normalize $B100 $MAX $MIN $WINDOW_WIDTH
         B100=$RET_NORM
         normalize $K1 $MAX $MIN $WINDOW_WIDTH
@@ -157,7 +168,7 @@ print_histogram_line $M100 "<100 MiB"
 print_histogram_line $G1 "<1 GiB  "
 print_histogram_line $OTHER ">=1 GiB "
 
-exit 0
+exit "$EXIT_CODE"
 
 
 #for f in $FFILES; do
