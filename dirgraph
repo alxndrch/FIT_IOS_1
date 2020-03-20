@@ -31,13 +31,24 @@ normalize(){ # $1 pocet namerenych hodnot; $2 interval s nejvice soubory ; $3 in
 
 }
 
-EXIT_CODE=0 # navratovy kod
 exit_code_process(){
-    
-    if [ "$EXIT_CODE" -eq "0" ]; then
-        EXIT_CODE=$1
-    fi
 
+    [ "$1" -ne "0" ] && err_msg "perm" && exit 1
+
+}
+
+err_msg(){
+    case "$1" in
+	input)
+        echo "Neplatny vstupni parametr" 1>&2 
+        ;;
+	regex)
+		echo "Regularni vyraz pokryva vstupni adresar" 1>&2 
+        ;;
+    perm)
+        echo "Nedostatecka prava" 1>&2
+        ;;
+  esac
 }
 
 NORM=false # true = nastaven parametr -n; jinak false
@@ -47,7 +58,7 @@ FFILES=0 # pocet souboru
 RE_IGNORE="/" # regularni vyraz pro parametr -i
 
 DIR_SET=false
-RET_SET=false
+REG_SET=false
 
 #intervaly 
 B100=0
@@ -64,46 +75,56 @@ OTHER=0
 while [ "$#" != "0" ]; do
     
     if [ "$1" = "-n" ]; then
-        [ "$NORM" = true ]  && exit 1 || NORM=true
+        [ "$NORM" = true ]  && err_msg "input" && exit 1 || NORM=true
     elif [ -d "$1" ]; then
-        [ "$DIR_SET" = "false" ] && DIR=$1 && DIR_SET=true || exit 1
+        [ "$DIR_SET" = false ] && DIR="$1" && DIR_SET=true || (err_msg "input" && exit 1)
     elif [ "$1" = "-i" ]; then
-        [ "$REG_SET" = "true" ] && exit 1 || REG_SET=true
+        [ "$REG_SET" = true ] && err_msg "input" && exit 1 || REG_SET=true
         shift
-        [ "$#" -eq "0" ] && exit 1 || RE_IGNORE=$1
+        [ "$#" -eq "0" ] && err_msg "input" && exit 1 || RE_IGNORE=$1
     else 
-        exit 1
+        err_msg "input" && exit 1
     fi
 
     shift 2>/dev/null
 done
 
-BASEDIR="$(basename "$DIR")"
+[ "$DIR" = "/" ] && RE_IGNORE=""
 
 if [ ! -z "$RE_IGNORE" ]; then 
-    if [ ! -z "$(echo "$BASEDIR" | grep -E --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
-        exit 1
+    if [ ! -z "$(basename "$DIR" | grep -Ew --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
+        err_msg "regex" && exit 1
     fi
 fi
 
-DIRS=$(find "$DIR" -type d -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null)
-exit_code_process $?
-DIRS=$(echo "$DIRS" | wc -l)
+DIRS=$(find "$DIR" -type d -printf "%f\n" 2>/dev/null)
+#exit_code_process $?
+DIRS=$(echo "$DIRS" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
 
-FFILES=$(find "$DIR" -type f -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null)
-exit_code_process $?
-[ -z "$FFILES" ] && FFILES=0 || FFILES=$(echo "$FFILES" | wc -l)
+
+FFILES=$(find "$DIR" -type f -printf "%f\n" 2>/dev/null)
+#exit_code_process $?
+# kdyz adresar nema zadnes soubory FFILES=0 jinak ignorujeme soubory podle regexp
+[ -z "$FFILES" ] && FFILES=0 || FFILES=$(echo "$FFILES" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+
+
+#pridani lomitka na konec cesty; pouze kvuli vyhodnocovani regularnich vyrazu; na konci se vraci zpet
+SLASH_SET=false
+[ $(echo -n "$DIR" | tail -c 1) != "/" ] && DIR="$DIR/" SLASH_SET=true
 
 #pocitani dat do histogramu
-B100=$(find "$DIR" -type f -size -100c -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" | wc -l)
-K1=$(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-K10=$(find "$DIR" -type f  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-K100=$(find "$DIR" -type f  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-M1=$(find "$DIR" -type f  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-M10=$(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-M100=$(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-OTHER=$(find "$DIR" -type f -size +1073741824c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+B100=$(find "$DIR" -type f -size -100c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+K1=$(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+K10=$(find "$DIR" -type f  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+K100=$(find "$DIR" -type f  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+M1=$(find "$DIR" -type f  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+M10=$(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+M100=$(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+OTHER=$(find "$DIR" -type f -size +1073741824c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+
+# odstaneni posledniho lomitka
+[ "$SLASH_SET" = true ] && DIR=${DIR%?}
 
 #normalizace
 if [ "$NORM" = "true" ]; then
@@ -112,7 +133,6 @@ if [ "$NORM" = "true" ]; then
         WINDOW_WIDTH=$(echo "$WINDOW_WIDTH-13" | bc)
     else
         WINDOW_WIDTH=67
-        echo "$WINDOW_WIDTH"
     fi
 
     MAX=0
@@ -162,7 +182,11 @@ print_histogram_line $M100 "<100 MiB"
 print_histogram_line $G1 "<1 GiB  "
 print_histogram_line $OTHER ">=1 GiB "
 
-exit "$EXIT_CODE"
+exit 0
+
+
+
+
 
 #pocitani dat do histogramu
 #B100=$(find "$DIR" -type f ! \( -regextype egrep -regex "$RE_IGNORE" \) -a -size -100c 2>/dev/null | wc -l)
@@ -184,3 +208,34 @@ exit "$EXIT_CODE"
 #M100=$(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
 #G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
 #OTHER=$(find "$DIR" -type f -size +1073741824c 2>/dev/null -exec basename {} \; | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+
+
+
+#for d in $(find "$DIR" -type d 2>/dev/null); do
+#
+#    ASD=$(echo "$d" | sed "s#$DIR/##")
+#    [ ! -z  $(basename "$d" | grep -E --regexp="$RE_IGNORE" 2>/dev/null) ] && continue
+#
+#done
+#
+#DIRS=$(find "$DIR" -type d -printf "%f\n" 2>/dev/null)
+##exit_code_process $?
+#DIRS=$(echo "$DIRS" | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#
+#FFILES=$(find "$DIR" -type f -printf "%f\n" 2>/dev/null)
+##exit_code_process $?
+#[ -z "$FFILES" ] && FFILES=0 || FFILES=$(echo "$FFILES" | grep -E -v --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+
+#[ $(echo -n "$DIR" | tail -c 1) = "/" ] && DIR=${DIR%?}
+
+
+#pocitani dat do histogramu
+#B100=$(find "$DIR" -type f -size -100c 2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#K1=$(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#K10=$(find "$DIR" -type f  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#K100=$(find "$DIR" -type f  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#M1=$(find "$DIR" -type f  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#M10=$(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#M100=$(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#OTHER=$(find "$DIR" -type f -size +1073741824c 2>/dev/null | sed "s:^$DIR/::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
