@@ -1,6 +1,6 @@
 #!/bin/sh
 
-POSIXLY_CORRECT=yes
+export POSIXLY_CORRECT=yes
 
 print_report_head(){ # $1 prohledavany adresar; $2 pocet adresaru; $3 pocet souboru
     echo "Root directory: $1"
@@ -52,7 +52,7 @@ err_msg(){
 }
 
 NORM=false # true = nastaven parametr -n; jinak false
-DIR=$(pwd) # prohledavany adresar
+DIR="$(pwd)" # prohledavany adresar
 DIRS=0 # pocet adresaru
 FFILES=0 # pocet souboru 
 RE_IGNORE="/" # regularni vyraz pro parametr -i
@@ -171,15 +171,15 @@ if [ "$NORM" = "true" ]; then
 fi
 
 #vypis histogramu
-print_report_head $DIR $DIRS $FFILES
-print_histogram_line $B100 "<100 B  "
-print_histogram_line $K1 "<1 KiB  "
-print_histogram_line $K10 "<10 KiB "
-print_histogram_line $K100 "<100 KiB"
-print_histogram_line $M1 "<1 MiB  "
-print_histogram_line $M10 "<10 MiB "
-print_histogram_line $M100 "<100 MiB"
-print_histogram_line $G1 "<1 GiB  "
-print_histogram_line $OTHER ">=1 GiB "
+print_report_head "$DIR" "$DIRS" "$FFILES"
+print_histogram_line "$B100" "<100 B  "
+print_histogram_line "$K1" "<1 KiB  "
+print_histogram_line "$K10" "<10 KiB "
+print_histogram_line "$K100" "<100 KiB"
+print_histogram_line "$M1" "<1 MiB  "
+print_histogram_line "$M10" "<10 MiB "
+print_histogram_line "$M100" "<100 MiB"
+print_histogram_line "$G1" "<1 GiB  "
+print_histogram_line "$OTHER" ">=1 GiB "
 
 exit 0
