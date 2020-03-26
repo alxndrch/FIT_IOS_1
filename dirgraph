@@ -75,19 +75,42 @@ OTHER=0
 while [ "$#" != "0" ]; do
     
     if [ "$1" = "-n" ]; then
-        [ "$NORM" = true ]  && err_msg "input" && exit 1 || NORM=true
+        if [ "$NORM" = true ]; then
+            err_msg "input"
+            exit 1 
+        else
+            NORM=true
+        fi
     elif [ -d "$1" ]; then
-        [ "$DIR_SET" = false ] && DIR="$1" && DIR_SET=true || (err_msg "input" && exit 1)
+        if [ "$DIR_SET" = false ]; then
+            DIR="$1"
+            DIR_SET=true
+        else
+            err_msg "input"
+            exit 1
+        fi
     elif [ "$1" = "-i" ]; then
-        [ "$REG_SET" = true ] && err_msg "input" && exit 1 || REG_SET=true
+        if [ "$REG_SET" = true ]; then
+            err_msg "input"
+            exit 1
+        else
+            REG_SET=true
+        fi
         shift
-        [ "$#" -eq "0" ] && err_msg "input" && exit 1 || RE_IGNORE=$1
+        if [ "$#" -eq "0" ]; then
+            err_msg "input"
+            exit 1
+        else
+            RE_IGNORE=$1
+        fi
     else 
-        err_msg "input" && exit 1
+        err_msg "input"
+        exit 1
     fi
 
     shift 2>/dev/null
 done
+
 
 [ "$DIR" = "/" ] && RE_IGNORE=""
 
@@ -108,6 +131,10 @@ FFILES=$(find "$DIR" -type f 2>/dev/null)
 [ -z "$FFILES" ] && FFILES=0 || FFILES=$(echo "$FFILES" | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
 
 
+
+
+
+
 #pridani lomitka na konec cesty; pouze kvuli vyhodnocovani regularnich vyrazu; na konci se vraci zpet
 SLASH_SET=false
 [ $(echo -n "$DIR" | tail -c 1) != "/" ] && DIR="$DIR/" SLASH_SET=true
@@ -125,6 +152,15 @@ OTHER=$(find "$DIR" -type f -size +1073741824c 2>/dev/null | sed "s:^$DIR::" | g
 
 # odstaneni posledniho lomitka
 [ "$SLASH_SET" = true ] && DIR=${DIR%?}
+
+
+
+
+
+
+
+
+
 
 #normalizace
 if [ "$NORM" = "true" ]; then
