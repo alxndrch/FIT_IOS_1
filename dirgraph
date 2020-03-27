@@ -33,10 +33,14 @@ normalize(){ # $1 pocet namerenych hodnot; $2 interval s nejvice soubory ; $3 in
 
 exit_code_process(){
 
-    [ "$1" -ne "0" ] && err_msg "perm" && exit 1
+    if [ "$1" -ne "0" ]; then 
+        err_msg "perm"
+        exit 1
+    fi
 
 }
 
+# zprava na chybovy vystup
 err_msg(){
     case "$1" in
 	input)
@@ -111,56 +115,128 @@ while [ "$#" != "0" ]; do
     shift 2>/dev/null
 done
 
-
-[ "$DIR" = "/" ] && RE_IGNORE=""
-
-if [ ! -z "$RE_IGNORE" ]; then 
-    if [ ! -z "$(basename "$DIR" | grep -Ew --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
-        err_msg "regex" && exit 1
+if [ "$REG_SET" = false ]; then
+    if [ "$(echo "$DIR" | grep -Ex --regexp="/*" 2>/dev/null | wc -l)" != "0" ]; then
+        RE_IGNORE=""
     fi
 fi
+
+#kontrola, zda regularni vyraz nepokryva pracovni adresar
+if [ ! -z "$RE_IGNORE" ]; then 
+    if [ ! -z "$(basename "$DIR" | grep -Ex --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
+        err_msg "regex" 
+        exit 1
+    fi
+fi
+
+
+
+#pridani lomitka na konec cesty; pouze kvuli vyhodnocovani regularnich vyrazu; na konci se vraci zpet
+#
+SLASH_SET=false
+[ $(echo -n "$DIR" | tail -c 1) != "/" ] && DIR="$DIR/" SLASH_SET=true
 
 DIRS=$(find "$DIR" -type d 2>/dev/null)
 #exit_code_process $?
 DIRS=$(echo "$DIRS" | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
 
 
+
 FFILES=$(find "$DIR" -type f 2>/dev/null)
 #exit_code_process $?
 # kdyz adresar nema zadnes soubory FFILES=0 jinak ignorujeme soubory podle regexp
-[ -z "$FFILES" ] && FFILES=0 || FFILES=$(echo "$FFILES" | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+#[ -z "$FFILES" ] && FFILES=0 || FFILES=$(echo "$FFILES" | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+
+
+OWN_GREP='BEGIN{ RS = "" ; FS = "\n" }{
+for(i=1;i<=NF;i++){
+    gsub("/","\n",$i)
+    if($i !~ pattern){
+        gsub("\n","/",$i) 
+        print($i)
+    }
+}  
+}'
+
+[ -z "$FFILES" ] && FFILES=0 || FFILES=$(echo "$FFILES" | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+
+echo "$FFILES"
+
+B100=$(find "$DIR" -type f -size -100c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+K1=$(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+K10=$(find "$DIR" -type f  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+K100=$(find "$DIR" -type f  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+M1=$(find "$DIR" -type f  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+M10=$(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+M100=$(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
+OTHER=$(find "$DIR" -type f -size +1073741824c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$TEST" | wc -l)
 
 
 
+#akw="awk '{ if( $0 ~ /^^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$$/){ print($0)} }'"
+#echo "home/alex/Repos/FIT_IOS_1/moje slozka"| tr "/" "\n" |awk -v pattern="^^moje slozka$" '{ for(i=0;i<NF;i++){ if($i ~ pattern){ print($0) }   }  }'s
 
 
-
-#pridani lomitka na konec cesty; pouze kvuli vyhodnocovani regularnich vyrazu; na konci se vraci zpet
-SLASH_SET=false
-[ $(echo -n "$DIR" | tail -c 1) != "/" ] && DIR="$DIR/" SLASH_SET=true
 
 #pocitani dat do histogramu
-B100=$(find "$DIR" -type f -size -100c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-K1=$(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-K10=$(find "$DIR" -type f  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-K100=$(find "$DIR" -type f  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-M1=$(find "$DIR" -type f  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-M10=$(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-M100=$(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
-OTHER=$(find "$DIR" -type f -size +1073741824c 2>/dev/null | sed "s:^$DIR::" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null | wc -l)
+
+
+
+#echo $(find "$DIR" -type f -size -100c 2>/dev/null | sed "s:^$DIR::" | awk '{ gsub("/","\n",$0); print $0}')
+
+
+
+#for f in "$FFILES_LIST"; do
+#    if [ ! -z "$(echo "$f" |sed "s:^$DIR::" | awk '{ gsub("/","\n",$0); print $0}'| grep -Ew --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
+#        FFILES_SIZE=0
+#        continue
+#    fi
+#    FFILES_SIZE=$(du "$f") 
+#    echo "$FFILES_SIZE"
+#    if [ "$FFILES_SIZE" -lt "100" ]; then
+#        B100=$((B100+1))
+#    elif [ "$FFILES_SIZE" -gt "100" -o "$FFILES_SIZE" -eq "100" ] && [ "$FFILES_SIZE" -lt "1024" ]; then
+#        K1=$((K1+1))
+#    elif [ "$FFILES_SIZE" -gt "1024" -o "$FFILES_SIZE" -eq "1024" ] && [ "$FFILES_SIZE" -lt "10240" ]; then
+#        K10=$((K10+1))
+#    elif [ "$FFILES_SIZE" -gt "10240" -o "$FFILES_SIZE" -eq "10240" ] && [ "$FFILES_SIZE" -lt "102400" ]; then
+#        K100=$((K100+1))
+#    elif [ "$FFILES_SIZE" -gt "102400" -o "$FFILES_SIZE" -eq "102400" ] && [ "$FFILES_SIZE" -lt "1048576" ]; then
+#        M1=$((M1+1))
+#    elif [ "$FFILES_SIZE" -gt "1048576" -o "$FFILES_SIZE" -eq "1048576" ] && [ "$FFILES_SIZE" -lt "10485760" ]; then
+#        M10=$((M10+1))
+#    elif [ "$FFILES_SIZE" -gt "10485760" -o "$FFILES_SIZE" -eq "10485760" ] && [ "$FFILES_SIZE" -lt "104857600" ]; then
+#        M100=$((M100+1))
+#    elif [ "$FFILES_SIZE" -gt "104857600" -o "$FFILES_SIZE" -eq "104857600" ] && [ "$FFILES_SIZE" -lt "1073741824" ]; then
+#        G1=$((G1+1))
+#    else
+#        OTHER=$((OTHER+1))
+#    fi
+#    FFILES_SIZE=0
+#done
+
+#for f in $(echo -e $(find "$DIR" -type f -size -100c 2>/dev/null | sed "s:^$DIR::")); do
+#    if [ ! -z "$(echo "$f" | tr "/" "\n" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
+#        B100=$((B100+1))
+#    fi
+#done
+#
+#echo "$B100"
+#
+#for f in $(echo -e $(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null)); do
+#    if [ ! -z "$(echo "$f" | tr "/" "\n" | grep -Evw --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
+#        K1=$((K1+1))
+#    fi
+#done
+#
+#echo "$K1"
+
+
+
 
 # odstaneni posledniho lomitka
 [ "$SLASH_SET" = true ] && DIR=${DIR%?}
-
-
-
-
-
-
-
-
-
 
 #normalizace
 if [ "$NORM" = "true" ]; then
@@ -207,7 +283,7 @@ if [ "$NORM" = "true" ]; then
 fi
 
 #vypis histogramu
-print_report_head "$DIR" "$DIRS" "$FFILES"
+print_report_head "$DIR" "$DIRS" "0"
 print_histogram_line "$B100" "<100 B  "
 print_histogram_line "$K1" "<1 KiB  "
 print_histogram_line "$K10" "<10 KiB "
