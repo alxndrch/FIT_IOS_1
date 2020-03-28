@@ -11,19 +11,6 @@ print_report_head(){ # $1 prohledavany adresar; $2 pocet adresaru; $3 pocet soub
     echo "File size histogram:"
 }
 
-calculate(){
-    F=0
-    if [ "$#" = 2 ]; then
-        F=$(find "$1" -type f -size "$2" 2>/dev/null | wc -l)
-    elif [ "$#" = 4 ]; then
-        echo "$@"
-        F=$(find "$1" -type f \( -size "$2" -o -size "$3" \) -a -size "$4" 2>/dev/null | wc -l)
-    fi
-
-    I=0 #I=$(echo "$F" | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" | grep -Exc --regexp="$RE_IGNORE")
-    echo $(( $F - $I ))
-}
-
 print_histogram_line(){ # $1 pocet vyskytu v danem intervalu; $2 prexif napr. <100 B
     awk -v len="$1" -v prefix="$2" 'BEGIN {
 			printf("  %s: ", prefix);
@@ -184,21 +171,6 @@ M10=$(( $(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size 
 M100=$(( $(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | wc -l) - $(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" | grep -Exc --regexp="$RE_IGNORE") ))
 G1=$(( $(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | wc -l) - $(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" | grep -Exc --regexp="$RE_IGNORE") ))
 OTHER=$(( $(find "$DIR" -type f -size +1073741824c 2>/dev/null | wc -l) - $(find "$DIR" -type f -size +1073741824c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" | grep -Exc --regexp="$RE_IGNORE") ))
-
-echo "$B100 + $K1 + $K10 + $K100 + $M1 + $M100 + $G1 + $OTHER"
-echo $((B100 + K1 + K10 + K100 + M1 + M100 + G1 + OTHER))
-echo "\n"
-calculate "$DIR" "-100c"
-calculate "$DIR" "+100c" "100c" "-1024c"
-calculate "$DIR" "+1024c" "1024c" "-10240c"
-calculate "$DIR" "+10240c" "10240c" "-102400c"
-calculate "$DIR" "+102400c" "102400c" "-1048576c"
-calculate "$DIR" "+1048576c" "1048576c" "-10485760c"
-calculate "$DIR" "+10485760c" "10485760c" "-104857600c"
-calculate "$DIR" "+104857600c" "104857600c" "-1073741824c"
-calculate "$DIR" "+1073741824c"
-
-
 
 # odstaneni posledniho lomitka
 [ "$SLASH_SET" = true ] && DIR=${DIR%?}
