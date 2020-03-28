@@ -1,8 +1,6 @@
 #!/bin/sh
 
-#ignore="$(find "$DIR" -type f -size -100c 2>/dev/null | awk -v pattern="moje" "$OWN_GREP" | grep -Exc --regexp="moje slozka")"
-
-export POSIXLY_CORRECT=yes
+POSIXLY_CORRECT=yes
 
 print_report_head(){ # $1 prohledavany adresar; $2 pocet adresaru; $3 pocet souboru
     echo "Root directory: $1"
@@ -52,7 +50,7 @@ err_msg(){
 		echo "Regularni vyraz pokryva vstupni adresar" 1>&2 
         ;;
     perm)
-        echo "Nedostatecka prava" 1>&2
+        echo "Nedostatecna prava k nekterym souborum" 1>&2
         ;;
   esac
 }
@@ -63,6 +61,7 @@ OWN_GREP='BEGIN{FS="/"}{
         if(match($i,pattern)!=0){
             gsub("\n","",$i)
             print($i)
+            break
         }
     }
 }'
@@ -148,17 +147,17 @@ SLASH_SET=false
 
 #pocitani adresaru
 DIRS=$(find "$DIR" -type d 2>/dev/null)
-#exit_code_process $?
-DIRS=$(( $(echo "$DIRS" | wc -l) - $(echo "$DIRS" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" | grep -Exc --regexp="$RE_IGNORE") ))
+exit_code_process $?
+DIRS=$(( $(echo "$DIRS" | wc -l) - $(echo "$DIRS" | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" | grep -Exc --regexp="$RE_IGNORE") ))
 
 #pocitani souboru
 FFILES=$(find "$DIR" -type f 2>/dev/null)
-#exit_code_process $?
+exit_code_process $?
 # kdyz adresar nema zadnes soubory FFILES=0 jinak ignorujeme soubory podle regexp
 if [ -z "$FFILES" ]; then
     FFILES=0
 else
-    FFILES=$(( $(echo "$FFILES" | wc -l) - $(echo "$FFILES" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" | grep -Exc --regexp="$RE_IGNORE") ))
+    FFILES=$(( $(echo "$FFILES" | wc -l) - $(echo "$FFILES" | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" | grep -Exc --regexp="$RE_IGNORE") ))
 fi
 
 #pocitani dat do histogramu
