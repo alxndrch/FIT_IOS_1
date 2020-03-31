@@ -46,8 +46,11 @@ err_msg(){
 	input)
         echo "Neplatny vstupni parametr" 1>&2 
         ;;
-	regex)
+	regex_cover)
 		echo "Regularni vyraz pokryva vstupni adresar" 1>&2 
+        ;;
+    regex_valid)
+        echo "Chyba v regularnim vyrazu" 1>&2
         ;;
     perm)
         echo "Nedostatecna prava k nekterym souborum" 1>&2
@@ -57,13 +60,15 @@ err_msg(){
 # hledani ignorovanych adresaru/souboru
 #https://stackoverflow.com/questions/16533062/linux-awk-string-exec-variable
 OWN_GREP='BEGIN{FS="/"}{
+
+    match_pattern = 0
     for(i=1;i<=NF;i++){
-        if(match($i,pattern)!=0){
-            gsub("\n","",$i)
-            print($i)
-            break
+        if(match($i,pattern)){
+            match_pattern = 1;
         }
     }
+    
+    if(match_pattern == 0){ print($0) } 
 }'
 
 NORM=false # true = nastaven parametr -n; jinak false
@@ -117,6 +122,11 @@ while [ "$#" != "0" ]; do
             exit 1
         else
             RE_IGNORE=$1
+            $(echo "" | grep -E --regexp="$RE_IGNORE" 2>/dev/null)
+            if [ "$?" = "2" ]; then
+                err_msg "regex_valid"
+                exit 1
+            fi
         fi
     else 
         err_msg "input"
@@ -126,29 +136,24 @@ while [ "$#" != "0" ]; do
     shift 2>/dev/null
 done
 
-if [ "$REG_SET" = false ]; then
-    if [ "$(echo "$DIR" | grep -Ex --regexp="/*" 2>/dev/null | wc -l)" != "0" ]; then
-        RE_IGNORE=""
-    fi
-fi
-
 #kontrola, zda regularni vyraz nepokryva pracovni adresar
-if [ ! -z "$RE_IGNORE" ]; then 
-    if [ ! -z "$(basename "$DIR" | grep -Ex --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
-        err_msg "regex" 
+if [ "$REG_SET" = true ]; then 
+
+    if [ ! -z "$(basename "$DIR" | grep -E --regexp="$RE_IGNORE" 2>/dev/null)" ]; then
+        err_msg "regex_cover" 
         exit 1
     fi
+
 fi
 
 #pridani lomitka na konec cesty; pouze kvuli vyhodnocovani regularnich vyrazu; na konci se vraci zpet
 SLASH_SET=false
 [ "$(echo -n "$DIR" | tail -c 1)" != "/" ] && DIR="$DIR/" SLASH_SET=true
 
-
 #pocitani adresaru
 DIRS=$(find "$DIR" -type d 2>/dev/null)
 exit_code_process $?
-DIRS=$(( $(echo "$DIRS" | wc -l) - $(echo "$DIRS" | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
+DIRS=$(echo "$DIRS" | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
 
 #pocitani souboru
 FFILES=$(find "$DIR" -type f 2>/dev/null)
@@ -157,19 +162,19 @@ exit_code_process $?
 if [ -z "$FFILES" ]; then
     FFILES=0
 else
-    FFILES=$(( $(echo "$FFILES" | wc -l) - $(echo "$FFILES" | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
+    FFILES=$(echo "$FFILES" | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
 fi
 
 #pocitani dat do histogramu
-B100=$(( $(find "$DIR" -type f -size -100c 2>/dev/null | wc -l) - $(find "$DIR" -type f -size -100c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
-K1=$(( $(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null | wc -l) - $(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
-K10=$(( $(find "$DIR" -type f  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null | wc -l) -$(find "$DIR" -type f  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
-K100=$(( $(find "$DIR" -type f  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null | wc -l) - $(find "$DIR" -type f  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
-M1=$(( $(find "$DIR" -type f  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null | wc -l) - $(find "$DIR" -type f  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
-M10=$(( $(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null | wc -l) - $(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
-M100=$(( $(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | wc -l) - $(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
-G1=$(( $(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | wc -l) - $(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
-OTHER=$(( $(find "$DIR" -type f -size +1073741824c 2>/dev/null | wc -l) - $(find "$DIR" -type f -size +1073741824c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | grep -Exc --regexp="$RE_IGNORE") ))
+B100=$(find "$DIR" -type f -size -100c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
+K1=$(find "$DIR" -type f  \( -size +100c -o -size 100c \) -a -size -1024c  2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
+K10=$(find "$DIR" -type f  \( -size +1024c -o -size 1024c \) -a -size -10240c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
+K100=$(find "$DIR" -type f  \( -size +10240c -o -size 10240c \) -a -size -102400c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
+M1=$(find "$DIR" -type f  \( -size +102400c -o -size 102400c \) -a -size -1048576c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
+M10=$(find "$DIR" -type f  \( -size +1048576c -o -size 1048576c \) -a -size -10485760c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
+M100=$(find "$DIR" -type f  \( -size +10485760c -o -size 10485760c \) -a -size -104857600c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
+G1=$(find "$DIR" -type f \( -size +104857600c -o -size 104857600c \) -a -size -1073741824c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
+OTHER=$(find "$DIR" -type f -size +1073741824c 2>/dev/null | sed "s:^$DIR::" | awk -v pattern="$RE_IGNORE" "$OWN_GREP" 2>/dev/null | wc -l)
 
 # odstaneni posledniho lomitka
 [ "$SLASH_SET" = true ] && DIR=${DIR%?}
