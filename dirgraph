@@ -224,7 +224,7 @@ if [ "$NORM" = "true" ]; then
 fi
 
 #vypis histogramu
-print_report_head "$DIR" "$DIRS" "$FFILES"
+print_report_head "$DIR" $DIRS $FFILES
 print_histogram_line "$B100" "<100 B  "
 print_histogram_line "$K1" "<1 KiB  "
 print_histogram_line "$K10" "<10 KiB "
